@@ -6,10 +6,7 @@ import { EsimResource } from './resources/esim';
 export interface WiilineClientOptions {
   /** Your Wiiline API key (from the dashboard's API Tokens page), e.g. "wii_...". */
   apiKey: string;
-  /**
-   * API base URL. Defaults to the production API.
-   * Override for a self-hosted or staging instance.
-   */
+  /** API base URL. Defaults to `https://wiiesim.me`. */
   baseUrl?: string;
   /** Request timeout in milliseconds. Defaults to 30000. */
   timeoutMs?: number;
@@ -95,9 +92,8 @@ export class WiilineClient {
       // Non-JSON body (rare - e.g. an upstream proxy error page).
     }
 
-    // The API is not fully consistent about status codes for logical
-    // failures (e.g. plans.list() can return HTTP 200 with success:false),
-    // so `success: false` in the body is checked independently of status.
+    // success:false can come back with a 200 on some endpoints, so check
+    // the body independently of the HTTP status.
     if (!response.ok || json?.success === false) {
       const body: WiilineApiErrorBody | undefined = json ?? undefined;
       const retryAfterHeader = response.headers.get('retry-after');

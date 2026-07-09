@@ -32,8 +32,8 @@ Getting an API key: sign in to your Wiiline dashboard, go to **API Tokens**, and
 ```ts
 new WiilineClient({
   apiKey: string;       // required
-  baseUrl?: string;     // defaults to the production API
-  timeoutMs?: number;   // defaults to 30000
+  baseUrl?: string;     // default: 'https://wiiesim.me'
+  timeoutMs?: number;   // default: 30000 (30s)
 });
 ```
 
@@ -108,16 +108,14 @@ try {
 }
 ```
 
-> The API is not perfectly consistent about HTTP status codes for every logical failure (for example, `plans.list()` can return HTTP 200 with a failed result if your account has no providers configured). The SDK normalizes this: **any unsuccessful call throws `WiilineApiError`, regardless of status code** — don't branch on status codes yourself, catch the error instead.
+`plans.list()` can return HTTP 200 with a failed result if your account has no providers configured, so don't branch on status codes — catch `WiilineApiError` instead, it's thrown for any unsuccessful call regardless of status.
 
-## Known API quirks (worth knowing)
+## Notes
 
-These aren't SDK bugs — they reflect real inconsistencies in the underlying API that the TypeScript types are written to accommodate:
-
-- `esim.info()` returns the raw provider status string (casing varies, e.g. `"Installed"`); `esim.issue()`'s response instead returns a normalized uppercase status enum. Compare case-insensitively if you need to match against both.
-- `esim.renew()` and `esim.upgrade()` refund automatically on provider failure (`refunded: true`, `refund_amount`, and `transaction` omitted from the response in that case) — `esim.issue()` has no refund path since it only deducts balance after the provider confirms success.
-- `esim.checkTopup()`'s success response is flat (`iccid`/`provider`/`topup_available` at the top level, no `user` object) — every other method nests these under `data` and includes `user`.
-- Testing-mode responses (when API testing mode is enabled on your account) aren't uniformly shaped compared to live-mode responses for the same method.
+- `esim.info()` returns the raw provider status string (casing varies, e.g. `"Installed"`); `esim.issue()` returns a normalized uppercase status enum instead. Compare case-insensitively if you're matching against both.
+- `esim.renew()` and `esim.upgrade()` refund automatically if the provider call fails after the charge (`refunded: true`, `refund_amount`, `transaction` omitted). `esim.issue()` has no refund path since it deducts balance only after the provider confirms success.
+- `esim.checkTopup()`'s response is flat — `iccid`/`provider`/`topup_available` at the top level, no `user` object — unlike every other method here.
+- Testing-mode responses aren't shaped identically to live-mode responses for the same method.
 
 ## TypeScript
 

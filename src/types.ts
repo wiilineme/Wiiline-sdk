@@ -18,11 +18,9 @@ export interface PlanCountry {
 /**
  * A plan/package as returned by `plans.list()` and `plans.get()`.
  *
- * Note: `price` is the provider's base price only. The actual amount charged
- * at `esim.issue()` / `esim.renew()` / `esim.upgrade()` time includes a
- * commission on top (the greater of $1.00 or 5% of the base price, or a flat
- * $1.00 for renew/upgrade) — see `transaction.amount_charged` on those
- * responses for the real total.
+ * `price` is the base price. Issuing, renewing, or upgrading adds a
+ * commission on top (max of $1.00 or 5%, flat $1.00 for renew/upgrade) —
+ * use `transaction.amount_charged` on those responses for the real total.
  */
 export interface Plan {
   plan_uuid: string;
@@ -92,12 +90,9 @@ export interface PlanDetailsResponse {
 }
 
 /**
- * Normalized eSIM status, as returned by `esim.issue()`.
- *
- * IMPORTANT: this normalization is only applied by `esim.issue()`.
- * `esim.info()` returns the raw provider string instead (e.g. "Installed"
- * with mixed casing) - don't assume every endpoint's `status_qr` uses this
- * enum. Compare case-insensitively if you need to match against both.
+ * Normalized eSIM status returned by `esim.issue()`. `esim.info()` returns
+ * the raw provider string instead (casing varies, e.g. "Installed") — compare
+ * case-insensitively if you need to match against both.
  */
 export type UnifiedEsimStatus =
   | 'RELEASED'
@@ -201,11 +196,9 @@ export interface EsimRenewResponse {
     subscription?: unknown;
   };
   /**
-   * Absent in testing-mode responses (live-mode only). If the provider call
-   * failed after the balance was already deducted, the charge is refunded
-   * and the top-level response instead has `refunded: true` +
-   * `refund_amount` (with `transaction` omitted) — check for `refunded`
-   * before assuming `transaction` is present.
+   * Omitted if the provider call failed after the balance was deducted —
+   * in that case the charge is refunded and `refunded`/`refund_amount` are
+   * set instead. Also omitted in testing-mode responses.
    */
   transaction?: Transaction;
   refunded?: boolean;
@@ -273,10 +266,8 @@ export interface EsimInfoResponse {
 }
 
 /**
- * `checkTopup()` is the one endpoint whose success payload is flat (no
- * `user` object, and `iccid`/`provider`/`topup_available` sit at the top
- * level rather than under `data`) - this mirrors the live API exactly,
- * inconsistent as it is.
+ * `iccid`/`provider`/`topup_available` sit at the top level here (not under
+ * `data`, and no `user` object), unlike the other eSIM response shapes.
  */
 export interface EsimTopupCheckResponse {
   iccid: string;

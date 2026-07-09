@@ -64,9 +64,8 @@ export class EsimResource {
 
   /**
    * Get the current status and usage details of an eSIM by ICCID.
-   *
-   * Note: `data.status_qr` here is the raw provider string (casing varies,
-   * e.g. "Installed") - it is NOT normalized the way `issue()`'s response is.
+   * `data.status_qr` is the raw provider string here (casing varies, e.g.
+   * "Installed"), unlike the normalized status on `issue()`.
    */
   info(iccid: string): Promise<EsimInfoResponse> {
     return this.client.request<EsimInfoResponse>('GET', '/api/esim/info', { query: { iccid } });
