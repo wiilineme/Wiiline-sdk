@@ -14,7 +14,7 @@ npm install wiiline-sdk
 import { WiilineClient } from 'wiiline-sdk';
 
 const client = new WiilineClient({
-  apiKey: 'wii_...', // from your dashboard's API Tokens page
+  apiKey: 'wii_...', // from your dashboard's API Tokens page - see "Getting an account"
 });
 
 // List plans for a country
@@ -25,7 +25,28 @@ const order = await client.esim.issue({ plan_id: plans[0].plan_uuid, count: 1 })
 console.log(order.data.response.esims[0].qrcode);
 ```
 
-Getting an API key: sign in to your Wiiline dashboard, go to **API Tokens**, and create one. Keys are shown only once at creation — store it securely (e.g. as an environment variable, never committed to source control or shipped in frontend/browser code).
+## Getting an account
+
+You need a Wiiline partner account and an API key. Accounts are invite-only:
+
+1. **Request access** at [wiiesim.me/register](https://wiiesim.me/register) - tell us about your business
+   (company or individual, website, country, expected volume) and whether you need the API only or
+   Whitelabel + API. Our team reviews the request and creates your account; you receive your sign-in
+   details by email.
+2. **Sign in** at [wiiesim.me/login](https://wiiesim.me/login) and **activate your account** with the one-time
+   $200 activation fee - **$100 of it is credited to your balance** for your first orders.
+3. **Sign the NDA** shown on your dashboard.
+4. **Top up your balance** (Balance page). eSIM purchases, renewals and top-ups are paid from this
+   prepaid balance.
+5. **Create an API key** under **API Tokens** (keys start with `wii_` and are shown only once). Store it
+   securely - e.g. as an environment variable on your server, never committed to source control or
+   shipped in frontend/browser code. Optionally restrict it to your servers' IPs on the same page.
+6. **(Optional) Set up webhooks** under **Webhooks** to receive order and eSIM events - see
+   [Webhooks](#webhooks) below.
+
+New accounts can start in **testing mode**, where calls return realistic mock data and nothing is
+charged. Ask your account manager to switch you to live mode when you're ready. The interactive API
+reference is in your dashboard under **API Documentation**.
 
 ## Configuration
 

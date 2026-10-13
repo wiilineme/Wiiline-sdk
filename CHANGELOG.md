@@ -18,6 +18,10 @@
 - Types: `WebhookEventDataMap` is replaced by `WebhookChangeMap`,
   `WebhookEventData` and `WebhookOrder`.
 
+### Docs
+- README: new **Getting an account** section - how to request access at wiiesim.me,
+  activate the account, top up, and create an API key.
+
 ### Migrating from 0.2
 | 0.2 | 0.3 |
 |---|---|
