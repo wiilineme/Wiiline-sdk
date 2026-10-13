@@ -125,19 +125,28 @@ app.post('/webhooks/wiiline', express.raw({ type: 'application/json' }), async (
   }
   res.sendStatus(200); // answer within 10s, then process
 
+  // Every event: event.data.order, event.data.esim, event.data.change
   switch (event.type) {
     case 'order.completed':
-      console.log('eSIM ready:', event.data.esims[0].qrcode);
+      console.log('eSIM ready:', event.data.esim?.qrcode);
       break;
     case 'esim.usage_threshold':
-      console.log(`${event.data.iccid} used ${event.data.threshold}%`);
+      console.log(`${event.data.esim?.iccid} used ${event.data.change.threshold}%`);
       break;
     case 'order.failed':
-      console.log('Order failed, refunded:', event.data.refunded);
+      console.log('Order failed, refunded:', event.data.change.refunded);
       break;
   }
 });
 ```
+
+Every event has the same `data` structure:
+
+| Field | Content |
+|---|---|
+| `data.order` | The related order (`order_uuid`, `order_type`, `plan_id`, `status`) or `null` |
+| `data.esim` | The full, current eSIM - same fields on every event, unified `status`, ISO dates, `null` when unknown |
+| `data.change` | What happened (event-specific, typed per `event.type`) |
 
 In frameworks with Web `Request` objects (Next.js route handlers, Hono, Cloudflare Workers):
 
@@ -148,7 +157,7 @@ const event = await constructWebhookEvent(raw, request.headers, secret);
 
 | Event | Sent when |
 |---|---|
-| `order.completed` | An eSIM order is ready (including async TGT orders) |
+| `order.completed` | An eSIM is ready (one event per eSIM, including orders completed later) |
 | `order.failed` | An order failed at the provider after it was placed (`refunded` tells you if your balance was credited back) |
 | `renewal.completed` / `renewal.failed` | Renewal, top-up or upgrade result |
 | `esim.status_changed` | eSIM status changed |

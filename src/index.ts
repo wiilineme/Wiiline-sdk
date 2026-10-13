@@ -6,7 +6,9 @@ export { verifyWebhookSignature, constructWebhookEvent } from './webhooks';
 export type {
   WebhookEvent,
   WebhookEventType,
-  WebhookEventDataMap,
+  WebhookEventData,
+  WebhookChangeMap,
+  WebhookOrder,
   WebhookEsim,
   VerifyWebhookOptions,
 } from './webhooks';

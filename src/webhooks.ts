@@ -12,90 +12,82 @@
  * runtimes without pulling Node's `crypto` into browser bundles. Verify on
  * your server only - never ship the signing secret to a browser.
  */
-import type { ProviderName } from './types';
+import type { UnifiedEsimStatus } from './types';
 import { WiilineApiError } from './errors';
 
 // ── Event types ─────────────────────────────────────────────────────────────
+//
+// Every event has the same shape:
+//   { id, type, api_version, created_at, data: { order, esim, change } }
+// `order` and `esim` are the same structures for every event type; only
+// `change` differs (WebhookChangeMap).
 
-/** The eSIM snapshot included in esim.* (and some order) events. */
+/** The order an event relates to. */
+export interface WebhookOrder {
+  order_uuid: string;
+  order_type: 'issue' | 'topup' | 'renew' | 'upgrade' | string | null;
+  plan_id: string | null;
+  status: 'completed' | 'pending' | 'failed' | 'refunded' | string | null;
+}
+
+/**
+ * The full, current eSIM. Every field is always present (`null` when unknown);
+ * `status` is always a unified status value and dates are ISO 8601 UTC.
+ */
 export interface WebhookEsim {
   iccid: string | null;
-  status: string | null;
+  status: UnifiedEsimStatus;
   qrcode: string | null;
+  ios_tap_link: string | null;
+  android_tap_link: string | null;
   plan_activated_at: string | null;
   plan_expired_at: string | null;
   activate_before: string | null;
+  renew_before: string | null;
   data_used_mb: number | null;
   data_left_mb: number | null;
   data_package_mb: number | null;
   unlimited: boolean | null;
   package_name: string | null;
   apn: string | null;
-  ios_tap_link: string | null;
-  android_tap_link: string | null;
-  provider: ProviderName | string | null;
+  install_device: string | null;
 }
 
-export interface WebhookEventDataMap {
-  'order.completed': {
-    order_uuid: string;
-    order_type: 'issue' | 'topup';
-    provider: string;
-    plan_id: string;
-    esims: WebhookEsim[];
-  };
-  'order.failed': {
-    order_uuid: string;
-    order_type: string;
-    provider: string;
-    plan_id: string;
-    iccid?: string | null;
-    reason: string;
-    refunded: boolean;
-    refund_amount?: number;
-  };
-  'renewal.completed': {
-    order_uuid: string;
-    order_type: 'renew' | 'topup' | 'upgrade';
-    provider: string;
-    plan_id: string;
-    iccid: string | null;
-    esim?: WebhookEsim | null;
-  };
-  'renewal.failed': {
-    order_uuid: string;
-    order_type: string;
-    provider: string;
-    plan_id: string;
-    iccid: string | null;
-    reason: string;
-    refunded: boolean;
-  };
-  'esim.status_changed': { iccid: string; previous_status: string; status: string; esim: WebhookEsim };
-  'esim.activated': { iccid: string; activated_at: string; expires_at: string | null; esim: WebhookEsim };
-  'esim.usage_threshold': {
-    iccid: string;
-    threshold: 50 | 80 | 100;
-    data_used_mb: number;
-    data_package_mb: number;
-    data_left_mb: number;
-    esim: WebhookEsim;
-  };
-  'esim.expiring_soon': { iccid: string; expires_at: string; esim: WebhookEsim };
-  'esim.expired': { iccid: string; expired_at: string | null; esim: WebhookEsim };
+/** What happened - the only part of `data` that differs per event type. */
+export interface WebhookChangeMap {
+  'order.completed': Record<string, never>;
+  'order.failed': { reason: string; refunded: boolean; refund_amount?: number };
+  'renewal.completed': Record<string, never>;
+  'renewal.failed': { reason: string; refunded: boolean };
+  'esim.status_changed': { previous_status: UnifiedEsimStatus; status: UnifiedEsimStatus };
+  'esim.activated': { activated_at: string; expires_at: string | null };
+  'esim.usage_threshold': { threshold: 50 | 80 | 100; data_used_mb: number; data_left_mb: number; data_package_mb: number };
+  'esim.expiring_soon': { expires_at: string };
+  'esim.expired': { expired_at: string | null };
   'webhook.test': { message: string };
 }
 
-export type WebhookEventType = keyof WebhookEventDataMap;
+export type WebhookEventType = keyof WebhookChangeMap;
 
-/** A verified webhook event. Narrow on `type` to get typed `data`. */
+/** `data` of an event: same structure for every type, typed `change`. */
+export interface WebhookEventData<T extends WebhookEventType = WebhookEventType> {
+  /** The related order, or null (e.g. webhook.test). */
+  order: WebhookOrder | null;
+  /** The eSIM, or null when the event isn't about one eSIM (e.g. an order that failed before issuing). */
+  esim: WebhookEsim | null;
+  change: WebhookChangeMap[T];
+}
+
+/** A verified webhook event. Narrow on `type` to get the typed `data.change`. */
 export type WebhookEvent = {
   [T in WebhookEventType]: {
     /** Event id - identical across retries of the same event. */
     id: string;
     type: T;
+    /** Payload schema version, e.g. "2026-10-13". */
+    api_version: string;
     created_at: string;
-    data: WebhookEventDataMap[T];
+    data: WebhookEventData<T>;
   };
 }[WebhookEventType];
 
@@ -195,7 +187,7 @@ export async function verifyWebhookSignature(
  *   }
  *   res.sendStatus(200); // answer fast, then process
  *   if (event.type === 'order.completed') {
- *     console.log(event.data.esims[0].qrcode);
+ *     console.log(event.data.esim?.qrcode);
  *   }
  * });
  */

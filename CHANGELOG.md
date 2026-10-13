@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.3.0
+
+### Changed (breaking)
+- **Unified webhook payloads.** Every event now has the same `data` structure:
+  `{ order, esim, change }`.
+  - `data.order` - the related order (`order_uuid`, `order_type`, `plan_id`,
+    `status`) or `null`.
+  - `data.esim` - the full eSIM snapshot with the same fields on every event:
+    unified `status`, ISO 8601 UTC dates, `null` when unknown. New fields:
+    `renew_before`, `install_device`. The `provider` field was removed.
+  - `data.change` - the event-specific fields (`previous_status`/`status`,
+    `threshold`, `reason`/`refunded`, ...), typed per event via `WebhookChangeMap`.
+- `order.completed` is sent once **per eSIM** (`data.esim`) instead of once per
+  order with an `esims` array.
+- Events carry `api_version` (currently `"2026-10-13"`).
+- Types: `WebhookEventDataMap` is replaced by `WebhookChangeMap`,
+  `WebhookEventData` and `WebhookOrder`.
+
+### Migrating from 0.2
+| 0.2 | 0.3 |
+|---|---|
+| `event.data.esims[0].qrcode` | `event.data.esim.qrcode` |
+| `event.data.iccid` | `event.data.esim.iccid` |
+| `event.data.order_uuid` | `event.data.order.order_uuid` |
+| `event.data.threshold`, `.refunded`, `.previous_status`... | `event.data.change.threshold`, ... |
+
 ## 0.2.0
 
 ### Added
