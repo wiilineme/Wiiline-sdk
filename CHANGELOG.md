@@ -23,6 +23,7 @@
   reinstall), with `device`, `previous_device`, `eid`, `install_count`, `installed_at`.
   Sent on networks that report the device.
 - Device fields on `WebhookEsim`: `install_device`, `install_count`, `installed_at`, `eid`.
+- The same device fields on `EsimRecord` (returned by `esim.info()` where the network reports them).
 
 ### Docs
 - README: new **Getting an account** section - how to request access at wiiesim.me,

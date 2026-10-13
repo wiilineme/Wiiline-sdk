@@ -156,6 +156,16 @@ export interface EsimRecord {
   android_tap_link: string | null;
   sim_applied?: boolean;
   provider?: string;
+  /**
+   * Device the eSIM is installed on - `esim.info()`, only on networks that
+   * report it (otherwise absent). Each reinstall increases `install_count`;
+   * installs per eSIM are limited by the network.
+   */
+  install_device?: string | null;
+  install_count?: number | null;
+  installed_at?: string | null;
+  /** The device's eSIM chip identifier (EID). */
+  eid?: string | null;
 }
 
 /** Cost breakdown for a completed purchase. */
