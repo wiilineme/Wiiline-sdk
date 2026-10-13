@@ -182,6 +182,7 @@ const event = await constructWebhookEvent(raw, request.headers, secret);
 | `order.failed` | An order failed at the provider after it was placed (`refunded` tells you if your balance was credited back) |
 | `renewal.completed` / `renewal.failed` | Renewal, top-up or upgrade result |
 | `esim.status_changed` | eSIM status changed |
+| `esim.installed` | Installed on a device (first install or reinstall) - device name, EID, install count - where the network reports the device |
 | `esim.activated` | First use - real activation and expiry dates |
 | `esim.usage_threshold` | Usage crossed 50%, 80% or 100% |
 | `esim.expiring_soon` / `esim.expired` | Less than 24h left / plan expired |

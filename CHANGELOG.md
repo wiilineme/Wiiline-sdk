@@ -18,6 +18,12 @@
 - Types: `WebhookEventDataMap` is replaced by `WebhookChangeMap`,
   `WebhookEventData` and `WebhookOrder`.
 
+### Added
+- `esim.installed` webhook event - the eSIM was installed on a device (first install or
+  reinstall), with `device`, `previous_device`, `eid`, `install_count`, `installed_at`.
+  Sent on networks that report the device.
+- Device fields on `WebhookEsim`: `install_device`, `install_count`, `installed_at`, `eid`.
+
 ### Docs
 - README: new **Getting an account** section - how to request access at wiiesim.me,
   activate the account, top up, and create an API key.

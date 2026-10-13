@@ -50,7 +50,12 @@ export interface WebhookEsim {
   unlimited: boolean | null;
   package_name: string | null;
   apn: string | null;
+  /** Device fields - only on networks that report the device, otherwise null. */
   install_device: string | null;
+  install_count: number | null;
+  installed_at: string | null;
+  /** The phone's eSIM chip identifier (EID). */
+  eid: string | null;
 }
 
 /** What happened - the only part of `data` that differs per event type. */
@@ -60,6 +65,14 @@ export interface WebhookChangeMap {
   'renewal.completed': Record<string, never>;
   'renewal.failed': { reason: string; refunded: boolean };
   'esim.status_changed': { previous_status: UnifiedEsimStatus; status: UnifiedEsimStatus };
+  /** Installed on a device (first install or reinstall). Only on networks that report the device. */
+  'esim.installed': {
+    device: string | null;
+    previous_device: string | null;
+    eid: string | null;
+    install_count: number | null;
+    installed_at: string | null;
+  };
   'esim.activated': { activated_at: string; expires_at: string | null };
   'esim.usage_threshold': { threshold: 50 | 80 | 100; data_used_mb: number; data_left_mb: number; data_package_mb: number };
   'esim.expiring_soon': { expires_at: string };
