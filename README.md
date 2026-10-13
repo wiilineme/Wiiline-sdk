@@ -1,6 +1,6 @@
 # wiiline-sdk
 
-Official TypeScript/JavaScript SDK for the Wiiline eSIM API. Works in Node.js (18+) and modern browsers.
+Official TypeScript/JavaScript SDK for the Wiiline eSIM API - plans, eSIM management and webhooks. Works in Node.js (18+) and modern browsers.
 
 ## Install
 
@@ -70,7 +70,7 @@ const renewed = await client.esim.renew({
   plan_id: 'plan_uuid_or_code',
 });
 
-// Check available topups for an eSIM
+// Check available topups for an eSIM (`message` explains when none are available)
 const topupCheck = await client.esim.checkTopup('8948010010029178828');
 
 // List topup/upgrade products without purchasing
@@ -87,6 +87,79 @@ const order = await client.esim.getOrder('order_uuid_from_issue');
 ```
 
 `issue` and `renew` both accept `count`/`iccid` combinations as documented in each method's JSDoc. All eSIM-issuing/renewing/upgrading calls are rate-limited to **10 requests/minute** per account.
+
+### Activation dates
+
+Until an eSIM is first used, `plan_activated_at` and `plan_expired_at` are `null`. For eSIMfx and TGT eSIMs, `activate_before` holds the deadline to activate it (typically 60 days after purchase):
+
+```ts
+const { data: esim } = await client.esim.info(iccid);
+if (!esim.plan_activated_at && esim.activate_before) {
+  console.log(`Not used yet - activate before ${esim.activate_before}`);
+}
+```
+
+Plans with `activation_type: 'IMMEDIATE'` start at purchase instead.
+
+### TGT eSIMs
+
+TGT provisions asynchronously. `issue()` waits up to ~25s; if the eSIM isn't ready yet it returns `status_qr: 'PENDING'` with an empty `qrcode` - fetch it later with `esim.getOrder(order_uuid)` or handle the `order.completed` webhook. Renewals behave the same way (`data.status: 'pending'`, followed by `renewal.completed` / `renewal.failed`). `checkTopup()` / `listTopups()` return only plans that can be applied to that eSIM, and `upgrade()` renews onto the chosen plan.
+
+## Webhooks
+
+Register an HTTPS endpoint in your dashboard under **Webhooks** to be notified instead of polling. Every request is signed - verify it with your endpoint's signing secret before trusting it:
+
+```ts
+import express from 'express';
+import { constructWebhookEvent } from 'wiiline-sdk';
+
+const app = express();
+
+// The raw body is required for signature verification.
+app.post('/webhooks/wiiline', express.raw({ type: 'application/json' }), async (req, res) => {
+  let event;
+  try {
+    event = await constructWebhookEvent(req.body, req.headers, process.env.WIILINE_WEBHOOK_SECRET!);
+  } catch {
+    return res.status(400).send('invalid signature');
+  }
+  res.sendStatus(200); // answer within 10s, then process
+
+  switch (event.type) {
+    case 'order.completed':
+      console.log('eSIM ready:', event.data.esims[0].qrcode);
+      break;
+    case 'esim.usage_threshold':
+      console.log(`${event.data.iccid} used ${event.data.threshold}%`);
+      break;
+    case 'order.failed':
+      console.log('Order failed, refunded:', event.data.refunded);
+      break;
+  }
+});
+```
+
+In frameworks with Web `Request` objects (Next.js route handlers, Hono, Cloudflare Workers):
+
+```ts
+const raw = await request.text();
+const event = await constructWebhookEvent(raw, request.headers, secret);
+```
+
+| Event | Sent when |
+|---|---|
+| `order.completed` | An eSIM order is ready (including async TGT orders) |
+| `order.failed` | An order failed at the provider after it was placed (`refunded` tells you if your balance was credited back) |
+| `renewal.completed` / `renewal.failed` | Renewal, top-up or upgrade result |
+| `esim.status_changed` | eSIM status changed |
+| `esim.activated` | First use - real activation and expiry dates |
+| `esim.usage_threshold` | Usage crossed 50%, 80% or 100% |
+| `esim.expiring_soon` / `esim.expired` | Less than 24h left / plan expired |
+| `webhook.test` | "Send test event" in the dashboard |
+
+- Failed deliveries are retried up to 8 times over ~2 days; retries reuse the same `event.id` - use it to ignore duplicates.
+- eSIM status/usage/expiry events come from provider polling and can arrive up to ~1 hour after the change.
+- `verifyWebhookSignature(rawBody, headers, secret)` returns a boolean if you only need the check.
 
 ## Error handling
 
@@ -113,7 +186,8 @@ try {
 ## Notes
 
 - `esim.info()` returns the raw provider status string (casing varies, e.g. `"Installed"`); `esim.issue()` returns a normalized uppercase status enum instead. Compare case-insensitively if you're matching against both.
-- `esim.renew()` and `esim.upgrade()` refund automatically if the provider call fails after the charge (`refunded: true`, `refund_amount`, `transaction` omitted). `esim.issue()` has no refund path since it deducts balance only after the provider confirms success.
+- `esim.renew()` and `esim.upgrade()` refund automatically if the provider call fails after the charge (`refunded: true`, `refund_amount`, `transaction` omitted). `esim.issue()` deducts balance only after the provider confirms success. If a provider fails *later* (TGT async), the charge is refunded automatically and you get an `order.failed` / `renewal.failed` webhook.
+- Errors raised **before** charging: `Renewal not available` (with the reason, e.g. renewal deadline passed), `Renewal not supported`, `Upgrade not supported`, `Invalid plan` (plan from a different provider than the eSIM). An ICCID from another account gives `eSIM not found` (404).
 - `esim.checkTopup()`'s response is flat — `iccid`/`provider`/`topup_available` at the top level, no `user` object — unlike every other method here.
 - Testing-mode responses aren't shaped identically to live-mode responses for the same method.
 
@@ -122,7 +196,7 @@ try {
 Full types are included and exported from the package root:
 
 ```ts
-import type { Plan, EsimIssueResponse, EsimRecord } from 'wiiline-sdk';
+import type { Plan, EsimIssueResponse, EsimRecord, WebhookEvent } from 'wiiline-sdk';
 ```
 
 ## License

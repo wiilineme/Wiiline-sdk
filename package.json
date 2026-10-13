@@ -1,7 +1,7 @@
 {
   "name": "wiiline-sdk",
-  "version": "0.1.0",
-  "description": "Official TypeScript/JavaScript SDK for the Wiiline eSIM API (plans and eSIM management).",
+  "version": "0.2.0",
+  "description": "Official TypeScript/JavaScript SDK for the Wiiline eSIM API (plans, eSIM management and webhooks).",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -28,7 +28,8 @@
     "wiiline",
     "esim",
     "sdk",
-    "api"
+    "api",
+    "webhooks"
   ],
   "license": "MIT",
   "repository": {

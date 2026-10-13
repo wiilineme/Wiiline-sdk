@@ -1,3 +1,16 @@
+/** eSIM providers behind the API. */
+export type ProviderName = 'esimfx' | 'esimcard' | 'yesim' | 'tgt';
+
+/**
+ * How a plan activates (`Plan.activation_type`):
+ * - `PDP`       - activates when the first byte of data is used. Some plans must
+ *                 be activated within a deadline - see `activation_type_description`
+ *                 / `other_info`, and `EsimRecord.activate_before` once bought.
+ * - `IMMEDIATE` - the plan starts at purchase; the usage period counts from the
+ *                 order time.
+ */
+export type ActivationType = 'PDP' | 'IMMEDIATE';
+
 /** The authenticated account context, echoed back by most endpoints. */
 export interface ApiUser {
   uuid: string;
@@ -36,7 +49,7 @@ export interface Plan {
   voice: string;
   sms: string;
   package_type: string;
-  activation_type: string;
+  activation_type: ActivationType | string;
   activation_type_description: string;
   countries_included: string;
   countryIso2: string;
@@ -57,7 +70,7 @@ export interface Plan {
   unlimited_speed: string;
   imsi_profile: string;
   countries: PlanCountry[];
-  provider: 'esimfx' | 'esimcard' | 'yesim' | string;
+  provider: ProviderName | string;
   /** "fixed" | "unlimited" | "unlimited_per_day" */
   data_type: string;
 }
@@ -112,8 +125,18 @@ export interface EsimRecord {
   user_uuid: string;
   created_at: string;
   active_plan_id: string | null;
+  /** When the plan actually started. `null` until the eSIM is first used. */
   plan_activated_at: string | null;
+  /** When the plan ends. `null` until the eSIM is first used. */
   plan_expired_at: string | null;
+  /**
+   * Latest date the eSIM can still be activated (eSIMfx and TGT eSIMs that
+   * haven't been used yet - typically 60 days after purchase). `null` once
+   * activated, and always `null` for other providers.
+   */
+  activate_before?: string | null;
+  /** TGT eSIMs only (`esim.info()`): last date the eSIM can still be renewed. */
+  renew_before?: string | null;
   qrcode: string;
   status_qr: string;
   provider_status_qr?: string;
@@ -155,9 +178,15 @@ export interface EsimIssueParams {
   /** eSimCard only: top up an existing eSIM instead of issuing a new one. */
   iccid?: string;
   /** Force a specific provider instead of auto-detecting. */
-  provider?: 'esimfx' | 'esimcard' | 'yesim';
+  provider?: ProviderName;
 }
 
+/**
+ * Note for TGT plans: TGT provisions asynchronously. If the eSIM isn't ready
+ * within ~25 seconds the response still succeeds, but the eSIM comes back with
+ * `status_qr: 'PENDING'` and an empty `qrcode`. Get it later with
+ * `esim.getOrder(order_uuid)`, or listen for the `order.completed` webhook.
+ */
 export interface EsimIssueResponse {
   order_uuid: string;
   message: string;
@@ -180,6 +209,12 @@ export interface EsimRenewParams {
   payment_id?: string;
 }
 
+/**
+ * TGT renewals are asynchronous: `data.status` is `'completed'` when TGT
+ * confirmed within ~20 seconds (with the new dates), otherwise `'pending'` -
+ * the `renewal.completed` / `renewal.failed` webhook follows, and a failed
+ * renewal is refunded automatically.
+ */
 export interface EsimRenewResponse {
   order_uuid: string;
   message: string;
@@ -187,8 +222,15 @@ export interface EsimRenewResponse {
     iccid: string;
     plan_id: string;
     provider: string;
-    order_id: string | null;
+    order_id?: string | null;
     status: string | null;
+    /** TGT only. */
+    tgt_order_no?: string;
+    /** TGT only, once confirmed. */
+    plan_activated_at?: string | null;
+    plan_expired_at?: string | null;
+    activate_before?: string | null;
+    renew_expiration_time?: string | null;
     /** Only present when provider === 'esimfx'. */
     qr_code?: string | null;
     apn?: string | null;
@@ -207,29 +249,45 @@ export interface EsimRenewResponse {
   testing_mode?: boolean;
 }
 
+/**
+ * A product that can be applied to an existing eSIM. Pass `id` to
+ * `esim.upgrade()` (or `esim.renew()` as `plan_id`).
+ *
+ * TGT products are renewal plans of the same card type and coverage as the
+ * eSIM (TGT rejects anything else); they carry `plan_code` and
+ * `is_current_plan`, and `price` is the total you'll be charged.
+ */
 export interface EsimTopupProduct {
   id: string;
   name: string;
-  days: number;
+  days: number | null;
   data: string;
-  voice: string;
-  sms: string;
+  voice?: string;
+  sms?: string;
   price: number;
   currency: string;
-  package_type: string;
-  unlimited: boolean;
-  unlimited_speed: string;
-  countries_included: string;
-  operators: string;
-  speed: string;
-  provider: string;
+  package_type?: string;
+  unlimited?: boolean;
+  unlimited_speed?: string | null;
+  countries_included?: string;
+  operators?: string;
+  speed?: string;
+  provider?: string;
+  /** TGT only. */
+  plan_code?: string;
+  /** TGT only: the plan currently on the eSIM. */
+  is_current_plan?: boolean;
 }
 
 export interface EsimListTopupsResponse {
   data: {
     iccid: string;
+    /** Present for TGT eSIMs. */
+    provider?: string;
     available_topups: EsimTopupProduct[];
     count: number;
+    /** Why the list is empty, when the eSIM can't be renewed (TGT). */
+    message?: string;
   };
 }
 
@@ -271,8 +329,9 @@ export interface EsimInfoResponse {
  */
 export interface EsimTopupCheckResponse {
   iccid: string;
-  provider: string;
+  provider: ProviderName | string;
   topup_available: boolean;
+  /** Human-readable result; explains why when `topup_available` is false. */
   message: string;
   data: {
     can_topup: boolean;
@@ -287,6 +346,26 @@ export interface EsimOrderResponse {
   user: ApiUser;
   [key: string]: unknown;
 }
+
+/**
+ * Common `WiilineApiError.code` values (the API's `error` field). Errors marked
+ * "before charging" mean nothing was deducted from your balance.
+ * - `Insufficient balance`   (402)
+ * - `Invalid plan`           (400) - unknown plan, or a plan from a different
+ *                             provider than the eSIM being renewed
+ * - `eSIM not found`         (404) - the ICCID isn't in your account
+ * - `Renewal not available`  (400, before charging) - e.g. renewal deadline
+ *                             passed, eSIM cancelled, incompatible plan
+ * - `Renewal not supported` / `Upgrade not supported` (400, before charging)
+ * - `Too many requests`      (429) - see `retryAfter`
+ */
+export type KnownApiErrorCode =
+  | 'Insufficient balance'
+  | 'Invalid plan'
+  | 'eSIM not found'
+  | 'Renewal not available'
+  | 'Renewal not supported'
+  | 'Upgrade not supported';
 
 /** Shape of every error response body from the API. */
 export interface WiilineApiErrorBody {
