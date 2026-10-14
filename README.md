@@ -111,7 +111,7 @@ const order = await client.esim.getOrder('order_uuid_from_issue');
 
 ### Activation dates
 
-Until an eSIM is first used, `plan_activated_at` and `plan_expired_at` are `null`. For eSIMfx and TGT eSIMs, `activate_before` holds the deadline to activate it (typically 60 days after purchase):
+Until an eSIM is first used, `plan_activated_at` and `plan_expired_at` are `null`. On networks that set an activation deadline, `activate_before` holds it (typically 60 days after purchase):
 
 ```ts
 const { data: esim } = await client.esim.info(iccid);
@@ -122,9 +122,9 @@ if (!esim.plan_activated_at && esim.activate_before) {
 
 Plans with `activation_type: 'IMMEDIATE'` start at purchase instead.
 
-### TGT eSIMs
+### Orders that complete later
 
-TGT provisions asynchronously. `issue()` waits up to ~25s; if the eSIM isn't ready yet it returns `status_qr: 'PENDING'` with an empty `qrcode` - fetch it later with `esim.getOrder(order_uuid)` or handle the `order.completed` webhook. Renewals behave the same way (`data.status: 'pending'`, followed by `renewal.completed` / `renewal.failed`). `checkTopup()` / `listTopups()` return only plans that can be applied to that eSIM, and `upgrade()` renews onto the chosen plan.
+Some networks prepare eSIMs asynchronously. `issue()` waits up to ~25s; if the eSIM isn't ready yet it returns `status_qr: 'PENDING'` with an empty `qrcode` - fetch it later with `esim.getOrder(order_uuid)` or handle the `order.completed` webhook. Renewals on those networks behave the same way (`data.status: 'pending'`, followed by `renewal.completed` / `renewal.failed`). `checkTopup()` / `listTopups()` always return only plans that can be applied to that eSIM.
 
 ## Webhooks
 
@@ -217,7 +217,7 @@ try {
 ## Notes
 
 - `esim.info()` returns the raw provider status string (casing varies, e.g. `"Installed"`); `esim.issue()` returns a normalized uppercase status enum instead. Compare case-insensitively if you're matching against both.
-- `esim.renew()` and `esim.upgrade()` refund automatically if the provider call fails after the charge (`refunded: true`, `refund_amount`, `transaction` omitted). `esim.issue()` deducts balance only after the provider confirms success. If a provider fails *later* (TGT async), the charge is refunded automatically and you get an `order.failed` / `renewal.failed` webhook.
+- `esim.renew()` and `esim.upgrade()` refund automatically if the provider call fails after the charge (`refunded: true`, `refund_amount`, `transaction` omitted). `esim.issue()` deducts balance only after the provider confirms success. If a provider fails *later* (asynchronous orders), the charge is refunded automatically and you get an `order.failed` / `renewal.failed` webhook.
 - Errors raised **before** charging: `Renewal not available` (with the reason, e.g. renewal deadline passed), `Renewal not supported`, `Upgrade not supported`, `Invalid plan` (plan from a different provider than the eSIM). An ICCID from another account gives `eSIM not found` (404).
 - `esim.checkTopup()`'s response is flat — `iccid`/`provider`/`topup_available` at the top level, no `user` object — unlike every other method here.
 - Testing-mode responses aren't shaped identically to live-mode responses for the same method.

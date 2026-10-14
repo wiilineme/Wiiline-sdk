@@ -1,5 +1,5 @@
 /** eSIM providers behind the API. */
-export type ProviderName = 'esimfx' | 'esimcard' | 'yesim' | 'tgt';
+export type ProviderName = 'esimfx' | 'esimcard' | 'yesim' | (string & {});
 
 /**
  * How a plan activates (`Plan.activation_type`):
@@ -130,12 +130,12 @@ export interface EsimRecord {
   /** When the plan ends. `null` until the eSIM is first used. */
   plan_expired_at: string | null;
   /**
-   * Latest date the eSIM can still be activated (eSIMfx and TGT eSIMs that
+   * Latest date the eSIM can still be activated (networks with an activation deadline, eSIMs that
    * haven't been used yet - typically 60 days after purchase). `null` once
    * activated, and always `null` for other providers.
    */
   activate_before?: string | null;
-  /** TGT eSIMs only (`esim.info()`): last date the eSIM can still be renewed. */
+  /** Some networks only (`esim.info()`): last date the eSIM can still be renewed. */
   renew_before?: string | null;
   qrcode: string;
   status_qr: string;
@@ -192,7 +192,7 @@ export interface EsimIssueParams {
 }
 
 /**
- * Note for TGT plans: TGT provisions asynchronously. If the eSIM isn't ready
+ * Note: some networks provision asynchronously. If the eSIM isn't ready
  * within ~25 seconds the response still succeeds, but the eSIM comes back with
  * `status_qr: 'PENDING'` and an empty `qrcode`. Get it later with
  * `esim.getOrder(order_uuid)`, or listen for the `order.completed` webhook.
@@ -220,7 +220,7 @@ export interface EsimRenewParams {
 }
 
 /**
- * TGT renewals are asynchronous: `data.status` is `'completed'` when TGT
+ * Some networks confirm renewals asynchronously: `data.status` is `'completed'` when the network
  * confirmed within ~20 seconds (with the new dates), otherwise `'pending'` -
  * the `renewal.completed` / `renewal.failed` webhook follows, and a failed
  * renewal is refunded automatically.
@@ -234,9 +234,9 @@ export interface EsimRenewResponse {
     provider: string;
     order_id?: string | null;
     status: string | null;
-    /** TGT only. */
+    /** Provider order number (asynchronous networks only). */
     tgt_order_no?: string;
-    /** TGT only, once confirmed. */
+    /** Asynchronous networks only, once confirmed. */
     plan_activated_at?: string | null;
     plan_expired_at?: string | null;
     activate_before?: string | null;
@@ -263,8 +263,8 @@ export interface EsimRenewResponse {
  * A product that can be applied to an existing eSIM. Pass `id` to
  * `esim.upgrade()` (or `esim.renew()` as `plan_id`).
  *
- * TGT products are renewal plans of the same card type and coverage as the
- * eSIM (TGT rejects anything else); they carry `plan_code` and
+ * On some networks products are renewal plans of the same card type and
+ * coverage as the eSIM (anything else is rejected); they carry `plan_code` and
  * `is_current_plan`, and `price` is the total you'll be charged.
  */
 export interface EsimTopupProduct {
@@ -283,20 +283,20 @@ export interface EsimTopupProduct {
   operators?: string;
   speed?: string;
   provider?: string;
-  /** TGT only. */
+  /** Some networks only. */
   plan_code?: string;
-  /** TGT only: the plan currently on the eSIM. */
+  /** Some networks only: the plan currently on the eSIM. */
   is_current_plan?: boolean;
 }
 
 export interface EsimListTopupsResponse {
   data: {
     iccid: string;
-    /** Present for TGT eSIMs. */
+    /** Present on some networks. */
     provider?: string;
     available_topups: EsimTopupProduct[];
     count: number;
-    /** Why the list is empty, when the eSIM can't be renewed (TGT). */
+    /** Why the list is empty, when the eSIM can't be renewed. */
     message?: string;
   };
 }

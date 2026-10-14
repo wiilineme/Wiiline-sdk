@@ -35,7 +35,7 @@ export class EsimResource {
    * refunded (`refunded: true` in the response, `transaction` omitted).
    *
    * The plan must be from the eSIM's own provider - use `checkTopup()` /
-   * `listTopups()` to get compatible plans. For TGT eSIMs eligibility is checked
+   * `listTopups()` to get compatible plans. On some networks eligibility is checked
    * before charging (`Renewal not available` error with the reason), and the
    * renewal may come back `data.status: 'pending'` - see `EsimRenewResponse`.
    *
@@ -47,7 +47,7 @@ export class EsimResource {
 
   /**
    * List topup/upgrade products available for an active eSIM, without
-   * purchasing anything. Supported for eSIMfx and TGT eSIMs (for TGT: renewal
+   * purchasing anything. Supported on networks that offer upgrades (on some: renewal
    * plans of the same card type and coverage; an empty list comes with
    * `data.message` explaining why).
    *
@@ -58,8 +58,8 @@ export class EsimResource {
   }
 
   /**
-   * Purchase a topup/upgrade product for an existing eSIM (eSIMfx and TGT).
-   * For TGT eSIMs this is a renewal onto the chosen plan, so the response has
+   * Purchase a topup/upgrade product for an existing eSIM (supported networks).
+   * On some networks this is a renewal onto the chosen plan, so the response has
    * the `renew()` shape (`EsimRenewResponse`). Other providers fail with
    * `Upgrade not supported` before charging. Charges your account balance;
    * refunded automatically if the provider call fails after the charge
@@ -77,7 +77,7 @@ export class EsimResource {
    * "Installed"), unlike the normalized status on `issue()`.
    *
    * Before first use, `plan_activated_at` / `plan_expired_at` are `null` and
-   * `activate_before` holds the activation deadline (eSIMfx, TGT). Throws
+   * `activate_before` holds the activation deadline (where the network sets one). Throws
    * `eSIM not found` (404) for an ICCID that belongs to another account.
    */
   info(iccid: string): Promise<EsimInfoResponse> {
@@ -86,7 +86,7 @@ export class EsimResource {
 
   /**
    * Check whether topup packages are available for an eSIM, and list them.
-   * Auto-detects the provider (eSimCard, YeSIM, eSIMfx, TGT) - there is no
+   * Auto-detects the provider - there is no
    * way to force one via this call. When `topup_available` is false,
    * `message` says why.
    */
@@ -96,7 +96,7 @@ export class EsimResource {
 
   /**
    * Look up a previous order (from `issue()`) by its `order_uuid`. Use this to
-   * pick up a TGT eSIM that was still `PENDING` when `issue()` returned (or
+   * pick up an eSIM that was still `PENDING` when `issue()` returned (or
    * listen for the `order.completed` webhook instead).
    */
   getOrder(orderUuid: string): Promise<EsimOrderResponse> {
