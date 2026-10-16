@@ -64,6 +64,8 @@ export interface WebhookChangeMap {
   'order.failed': { reason: string; refunded: boolean; refund_amount?: number };
   'renewal.completed': Record<string, never>;
   'renewal.failed': { reason: string; refunded: boolean };
+  /** The eSIM was replaced (`esim.change()`); `esim` is the NEW eSIM. */
+  'esim.replaced': { replaced_iccid: string; new_iccid: string };
   'esim.status_changed': { previous_status: UnifiedEsimStatus; status: UnifiedEsimStatus };
   /** Installed on a device (first install or reinstall). Only on networks that report the device. */
   'esim.installed': {

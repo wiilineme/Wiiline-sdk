@@ -1,6 +1,3 @@
-/** eSIM providers behind the API. */
-export type ProviderName = 'esimfx' | 'esimcard' | 'yesim' | (string & {});
-
 /**
  * How a plan activates (`Plan.activation_type`):
  * - `PDP`       - activates when the first byte of data is used. Some plans must
@@ -32,7 +29,7 @@ export interface PlanCountry {
  * A plan/package as returned by `plans.list()` and `plans.get()`.
  *
  * `price` is the base price. Issuing, renewing, or upgrading adds a
- * commission on top (max of $1.00 or 5%, flat $1.00 for renew/upgrade) —
+ * commission on top (max of $1.00 or 5%, flat $1.00 for renew/upgrade) 
  * use `transaction.amount_charged` on those responses for the real total.
  */
 export interface Plan {
@@ -70,7 +67,6 @@ export interface Plan {
   unlimited_speed: string;
   imsi_profile: string;
   countries: PlanCountry[];
-  provider: ProviderName | string;
   /** "fixed" | "unlimited" | "unlimited_per_day" */
   data_type: string;
 }
@@ -81,11 +77,11 @@ export interface PlansListParams {
   /** Substring match against plan name/countries. */
   filter?: string;
   plan_type?: 'country' | 'region' | 'global';
-  /** eSimCard package group. Defaults to the API's current group. */
+  /** Package group. Defaults to the API's current group. */
   group?: string;
-  /** eSimCard-specific filter. */
+  /** Filter by country id. */
   country_id?: string;
-  /** eSimCard-specific filter. */
+  /** Filter by continent id. */
   continent_id?: string;
 }
 
@@ -104,7 +100,7 @@ export interface PlanDetailsResponse {
 
 /**
  * Normalized eSIM status returned by `esim.issue()`. `esim.info()` returns
- * the raw provider string instead (casing varies, e.g. "Installed") — compare
+ * the raw network status string instead (casing varies, e.g. "Installed")  compare
  * case-insensitively if you need to match against both.
  */
 export type UnifiedEsimStatus =
@@ -132,14 +128,13 @@ export interface EsimRecord {
   /**
    * Latest date the eSIM can still be activated (networks with an activation deadline, eSIMs that
    * haven't been used yet - typically 60 days after purchase). `null` once
-   * activated, and always `null` for other providers.
+   * activated, and always `null` on networks without a deadline.
    */
   activate_before?: string | null;
   /** Some networks only (`esim.info()`): last date the eSIM can still be renewed. */
   renew_before?: string | null;
   qrcode: string;
   status_qr: string;
-  provider_status_qr?: string;
   imsi: string | null;
   msisdn: string | null;
   is_deleted: string;
@@ -155,7 +150,6 @@ export interface EsimRecord {
   ios_tap_link: string | null;
   android_tap_link: string | null;
   sim_applied?: boolean;
-  provider?: string;
   /**
    * Device the eSIM is installed on - `esim.info()`, only on networks that
    * report it (otherwise absent). Each reinstall increases `install_count`;
@@ -181,14 +175,12 @@ export interface Transaction {
 }
 
 export interface EsimIssueParams {
-  /** plan_uuid (internal) or plan_code (provider ID). */
+  /** plan_uuid or plan_code from `plans.list()`. */
   plan_id: string;
   /** Number of eSIMs to issue. 1-10. Must be 1 if `iccid` is given. */
   count: number;
-  /** eSimCard only: top up an existing eSIM instead of issuing a new one. */
+  /** Add the plan to this existing eSIM instead of issuing a new one (plans that support it - see `esim.checkTopup()`). */
   iccid?: string;
-  /** Force a specific provider instead of auto-detecting. */
-  provider?: ProviderName;
 }
 
 /**
@@ -204,7 +196,6 @@ export interface EsimIssueResponse {
     plan_id: string;
     plan_code: string;
     count: number;
-    provider: string;
     response: { esims: EsimRecord[] };
   };
   transaction: Transaction;
@@ -214,7 +205,7 @@ export interface EsimIssueResponse {
 
 export interface EsimRenewParams {
   iccid: string;
-  /** plan_uuid (internal) or plan_code (provider ID). */
+  /** plan_uuid or plan_code - one returned by `esim.checkTopup()` for this eSIM. */
   plan_id: string;
   payment_id?: string;
 }
@@ -231,24 +222,21 @@ export interface EsimRenewResponse {
   data: {
     iccid: string;
     plan_id: string;
-    provider: string;
     order_id?: string | null;
     status: string | null;
-    /** Provider order number (asynchronous networks only). */
-    tgt_order_no?: string;
     /** Asynchronous networks only, once confirmed. */
     plan_activated_at?: string | null;
     plan_expired_at?: string | null;
     activate_before?: string | null;
     renew_expiration_time?: string | null;
-    /** Only present when provider === 'esimfx'. */
+    /** Present on some networks. */
     qr_code?: string | null;
     apn?: string | null;
     esim_status?: string | null;
     subscription?: unknown;
   };
   /**
-   * Omitted if the provider call failed after the balance was deducted —
+   * Omitted if the network call failed after the balance was deducted 
    * in that case the charge is refunded and `refunded`/`refund_amount` are
    * set instead. Also omitted in testing-mode responses.
    */
@@ -282,7 +270,6 @@ export interface EsimTopupProduct {
   countries_included?: string;
   operators?: string;
   speed?: string;
-  provider?: string;
   /** Some networks only. */
   plan_code?: string;
   /** Some networks only: the plan currently on the eSIM. */
@@ -292,8 +279,6 @@ export interface EsimTopupProduct {
 export interface EsimListTopupsResponse {
   data: {
     iccid: string;
-    /** Present on some networks. */
-    provider?: string;
     available_topups: EsimTopupProduct[];
     count: number;
     /** Why the list is empty, when the eSIM can't be renewed. */
@@ -312,7 +297,6 @@ export interface EsimUpgradeResponse {
   data: {
     iccid: string;
     product_id: string;
-    provider: string;
     order_id: string;
     status: string;
     qr_code: string | null;
@@ -328,18 +312,17 @@ export interface EsimUpgradeResponse {
 }
 
 export interface EsimInfoResponse {
-  data: EsimRecord & { provider: string };
+  data: EsimRecord;
   user: ApiUser;
   testing_mode?: boolean;
 }
 
 /**
- * `iccid`/`provider`/`topup_available` sit at the top level here (not under
+ * `iccid`/`topup_available` sit at the top level here (not under
  * `data`, and no `user` object), unlike the other eSIM response shapes.
  */
 export interface EsimTopupCheckResponse {
   iccid: string;
-  provider: ProviderName | string;
   topup_available: boolean;
   /** Human-readable result; explains why when `topup_available` is false. */
   message: string;
@@ -348,6 +331,25 @@ export interface EsimTopupCheckResponse {
     available_packages: EsimTopupProduct[];
   };
   testing_mode?: boolean;
+}
+
+export interface EsimChangeParams {
+  /** ICCID of the eSIM to replace (one of your own eSIMs). */
+  iccid: string;
+}
+
+/**
+ * Result of `esim.change()`: the replacement eSIM (new ICCID and QR code) in
+ * the same normalized shape as webhook payloads. The old eSIM stops working.
+ */
+export interface EsimChangeResponse {
+  message: string;
+  data: {
+    replaced_iccid: string;
+    /** `null` in testing mode. */
+    order_uuid: string | null;
+    esim: import('./webhooks').WebhookEsim;
+  };
 }
 
 export interface EsimOrderResponse {
@@ -361,8 +363,8 @@ export interface EsimOrderResponse {
  * Common `WiilineApiError.code` values (the API's `error` field). Errors marked
  * "before charging" mean nothing was deducted from your balance.
  * - `Insufficient balance`   (402)
- * - `Invalid plan`           (400) - unknown plan, or a plan from a different
- *                             provider than the eSIM being renewed
+ * - `Invalid plan`           (400) - unknown plan, or a plan that isn't
+ *                             compatible with the eSIM being renewed
  * - `eSIM not found`         (404) - the ICCID isn't in your account
  * - `Renewal not available`  (400, before charging) - e.g. renewal deadline
  *                             passed, eSIM cancelled, incompatible plan

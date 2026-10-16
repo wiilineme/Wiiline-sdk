@@ -4,7 +4,7 @@ import type { WiilineApiErrorBody } from './types';
  * Thrown for any API response with `success: false`, or a network/transport
  * failure. Note the API itself is not perfectly consistent about HTTP status
  * codes (e.g. `plans.list()` can return HTTP 200 with `success: false` when
- * the account has no providers configured) - always prefer catching this
+ * no plans are available for the account) - always prefer catching this
  * error over branching on `status` alone.
  */
 export class WiilineApiError extends Error {

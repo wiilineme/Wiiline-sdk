@@ -71,7 +71,7 @@ const { data: plans, meta } = await client.plans.list({
 const { data: plan } = await client.plans.get('plan_uuid_or_code');
 ```
 
-Note: `plan.price` is the provider's base price. The amount actually charged when you issue/renew/upgrade includes a commission on top — check `transaction.amount_charged` on those responses for the real total.
+Note: `plan.price` is the base price. The amount actually charged when you issue/renew/upgrade includes a commission on top  check `transaction.amount_charged` on those responses for the real total.
 
 ## eSIM management
 
@@ -93,6 +93,10 @@ const renewed = await client.esim.renew({
 
 // Check available topups for an eSIM (`message` explains when none are available)
 const topupCheck = await client.esim.checkTopup('8948010010029178828');
+
+// Replace an eSIM (new ICCID + QR code; the old one stops working). Max 3 per account.
+const replaced = await client.esim.change({ iccid: '8948010010029178828' });
+console.log(replaced.data.esim.qrcode);
 
 // List topup/upgrade products without purchasing
 const topups = await client.esim.listTopups('8948010010029178828');
@@ -179,8 +183,9 @@ const event = await constructWebhookEvent(raw, request.headers, secret);
 | Event | Sent when |
 |---|---|
 | `order.completed` | An eSIM is ready (one event per eSIM, including orders completed later) |
-| `order.failed` | An order failed at the provider after it was placed (`refunded` tells you if your balance was credited back) |
+| `order.failed` | An order failed at the network after it was placed (`refunded` tells you if your balance was credited back) |
 | `renewal.completed` / `renewal.failed` | Renewal, top-up or upgrade result |
+| `esim.replaced` | The eSIM was replaced via `esim.change()` - `esim` is the new eSIM, `change.replaced_iccid` the old one |
 | `esim.status_changed` | eSIM status changed |
 | `esim.installed` | Installed on a device (first install or reinstall) - device name, EID, install count - where the network reports the device |
 | `esim.activated` | First use - real activation and expiry dates |
@@ -189,7 +194,7 @@ const event = await constructWebhookEvent(raw, request.headers, secret);
 | `webhook.test` | "Send test event" in the dashboard |
 
 - Failed deliveries are retried up to 8 times over ~2 days; retries reuse the same `event.id` - use it to ignore duplicates.
-- eSIM status/usage/expiry events come from provider polling and can arrive up to ~1 hour after the change.
+- eSIM status/usage/expiry events come from network polling and can arrive up to ~1 hour after the change.
 - `verifyWebhookSignature(rawBody, headers, secret)` returns a boolean if you only need the check.
 
 ## Error handling
@@ -212,14 +217,14 @@ try {
 }
 ```
 
-`plans.list()` can return HTTP 200 with a failed result if your account has no providers configured, so don't branch on status codes — catch `WiilineApiError` instead, it's thrown for any unsuccessful call regardless of status.
+`plans.list()` can return HTTP 200 with a failed result if no plans are available for your account, so don't branch on status codes  catch `WiilineApiError` instead, it's thrown for any unsuccessful call regardless of status.
 
 ## Notes
 
-- `esim.info()` returns the raw provider status string (casing varies, e.g. `"Installed"`); `esim.issue()` returns a normalized uppercase status enum instead. Compare case-insensitively if you're matching against both.
-- `esim.renew()` and `esim.upgrade()` refund automatically if the provider call fails after the charge (`refunded: true`, `refund_amount`, `transaction` omitted). `esim.issue()` deducts balance only after the provider confirms success. If a provider fails *later* (asynchronous orders), the charge is refunded automatically and you get an `order.failed` / `renewal.failed` webhook.
-- Errors raised **before** charging: `Renewal not available` (with the reason, e.g. renewal deadline passed), `Renewal not supported`, `Upgrade not supported`, `Invalid plan` (plan from a different provider than the eSIM). An ICCID from another account gives `eSIM not found` (404).
-- `esim.checkTopup()`'s response is flat — `iccid`/`provider`/`topup_available` at the top level, no `user` object — unlike every other method here.
+- `esim.info()` returns the raw network status string (casing varies, e.g. `"Installed"`); `esim.issue()` returns a normalized uppercase status enum instead. Compare case-insensitively if you're matching against both.
+- `esim.renew()` and `esim.upgrade()` refund automatically if the network call fails after the charge (`refunded: true`, `refund_amount`, `transaction` omitted). `esim.issue()` deducts balance only after the network confirms success. If a network fails *later* (asynchronous orders), the charge is refunded automatically and you get an `order.failed` / `renewal.failed` webhook.
+- Errors raised **before** charging: `Renewal not available` (with the reason, e.g. renewal deadline passed), `Renewal not supported`, `Upgrade not supported`, `Invalid plan` (plan not compatible with the eSIM). An ICCID from another account gives `eSIM not found` (404).
+- `esim.checkTopup()`'s response is flat  `iccid`/`topup_available` at the top level, no `user` object  unlike every other method here.
 - Testing-mode responses aren't shaped identically to live-mode responses for the same method.
 
 ## TypeScript

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.0
+
+### Added
+- `esim.change({ iccid })` - replace an eSIM with a new one (new ICCID and QR code).
+  The active plan and remaining data move to the new eSIM; the old one stops working.
+  Limited to 3 replacements per account. New types `EsimChangeParams` / `EsimChangeResponse`.
+- Webhook event `esim.replaced` (`change.replaced_iccid`, `change.new_iccid`).
+
+### Changed (breaking)
+- The API no longer exposes which network supplier fulfils a plan or an eSIM.
+  Removed: the `ProviderName` type, `Plan.provider`, `EsimRecord.provider` /
+  `provider_status_qr`, `EsimIssueParams.provider`, and `provider` on the issue,
+  renew, upgrade, info, topup-check and topup responses. Use `esim.checkTopup()`
+  to find plans compatible with an eSIM.
+
 ## 0.3.0
 
 ### Changed (breaking)
