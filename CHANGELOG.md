@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.1
+
+- `EsimTopupProduct`: new optional `plan_price`, `service_fee`, `plan_type`, `region_name`.
+  `price` is now always the full amount charged when the product is applied.
+- `esim.checkTopup()` now lists upgrade/downgrade options for more eSIMs; its
+  `message` says which call applies them (`renew()` or `issue()` with `iccid`).
+
 ## 0.4.0
 
 ### Added

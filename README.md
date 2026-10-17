@@ -21,8 +21,11 @@ const client = new WiilineClient({
 const { data: plans } = await client.plans.list({ plan_type: 'country' });
 
 // Issue an eSIM
-const order = await client.esim.issue({ plan_id: plans[0].plan_uuid, count: 1 });
-console.log(order.data.response.esims[0].qrcode);
+// Persist this key for the purchase; reuse it after any timeout.
+const purchaseKey = crypto.randomUUID();
+const order = await client.esim.issue({ plan_id: plans[0].plan_uuid, count: 1 }, purchaseKey);
+if (order.pending) console.log('Check order:', order.order_uuid);
+else console.log(order.data.response.esims[0].qrcode);
 ```
 
 ## Getting an account
@@ -80,7 +83,7 @@ Note: `plan.price` is the base price. The amount actually charged when you issue
 const issued = await client.esim.issue({
   plan_id: 'plan_uuid_or_code',
   count: 1,          // 1-10
-});
+}, 'unique-purchase-key');
 
 // Get eSIM status/usage
 const info = await client.esim.info('8948010010029178828' /* iccid */);
@@ -205,7 +208,7 @@ Every failed call throws a `WiilineApiError`:
 import { WiilineApiError } from 'wiiline-sdk';
 
 try {
-  await client.esim.issue({ plan_id: 'bad-id', count: 1 });
+  await client.esim.issue({ plan_id: 'bad-id', count: 1 }, 'unique-purchase-key');
 } catch (err) {
   if (err instanceof WiilineApiError) {
     console.error(err.status);      // HTTP status (0 for network/timeout errors)
@@ -222,7 +225,7 @@ try {
 ## Notes
 
 - `esim.info()` returns the raw network status string (casing varies, e.g. `"Installed"`); `esim.issue()` returns a normalized uppercase status enum instead. Compare case-insensitively if you're matching against both.
-- `esim.renew()` and `esim.upgrade()` refund automatically if the network call fails after the charge (`refunded: true`, `refund_amount`, `transaction` omitted). `esim.issue()` deducts balance only after the network confirms success. If a network fails *later* (asynchronous orders), the charge is refunded automatically and you get an `order.failed` / `renewal.failed` webhook.
+- `esim.renew()` and `esim.upgrade()` refund automatically if the network call fails after the charge (`refunded: true`, `refund_amount`, `transaction` omitted). `esim.issue()` reserves available balance before contacting the network. Reuse the same required idempotency key on retries. HTTP 202 / `pending: true` keeps funds reserved while the provider outcome is verified; do not create a new purchase for that operation. If a network fails *later* (asynchronous orders), the charge is refunded automatically and you get an `order.failed` / `renewal.failed` webhook.
 - Errors raised **before** charging: `Renewal not available` (with the reason, e.g. renewal deadline passed), `Renewal not supported`, `Upgrade not supported`, `Invalid plan` (plan not compatible with the eSIM). An ICCID from another account gives `eSIM not found` (404).
 - `esim.checkTopup()`'s response is flat  `iccid`/`topup_available` at the top level, no `user` object  unlike every other method here.
 - Testing-mode responses aren't shaped identically to live-mode responses for the same method.

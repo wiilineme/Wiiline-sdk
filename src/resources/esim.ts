@@ -24,11 +24,11 @@ export class EsimResource {
    * Rate limit: 10 requests/minute.
    *
    * @example
-   * const result = await client.esim.issue({ plan_id: 'plan_uuid_or_code', count: 1 });
+   * const result = await client.esim.issue({ plan_id: 'plan_uuid_or_code', count: 1 }, 'purchase-unique-key');
    * console.log(result.data.response.esims[0].qrcode);
    */
-  issue(params: EsimIssueParams): Promise<EsimIssueResponse> {
-    return this.client.request<EsimIssueResponse>('POST', '/api/esim/issue', { body: params });
+  issue(params: EsimIssueParams, idempotencyKey: string): Promise<EsimIssueResponse> {
+    return this.client.request<EsimIssueResponse>('POST', '/api/esim/issue', { body: params, headers: { 'Idempotency-Key': idempotencyKey } });
   }
 
   /**
@@ -88,7 +88,10 @@ export class EsimResource {
 
   /**
    * Check whether topup packages are available for an eSIM, and list them.
-   * When `topup_available` is false, `message` says why.
+   * When `topup_available` is false, `message` says why. `message` also
+   * says how to apply a listed product: most eSIMs use `renew()`; for some it
+   * is `issue({ plan_id, iccid, count: 1 })`. Products are cheapest first and
+   * `price` is the full amount charged.
    */
   checkTopup(iccid: string): Promise<EsimTopupCheckResponse> {
     return this.client.request<EsimTopupCheckResponse>('GET', '/api/esim/topup-check', { query: { iccid } });

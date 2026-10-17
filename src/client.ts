@@ -53,7 +53,7 @@ export class WiilineClient {
   async request<T>(
     method: 'GET' | 'POST',
     path: string,
-    options: { query?: QueryParams; body?: unknown } = {}
+    options: { query?: QueryParams; body?: unknown; headers?: Record<string, string> } = {}
   ): Promise<T> {
     const url = this.buildUrl(path, options.query);
     const controller = new AbortController();
@@ -64,6 +64,7 @@ export class WiilineClient {
       response = await fetch(url, {
         method,
         headers: {
+          ...options.headers,
           Authorization: `Bearer ${this.apiKey}`,
           ...(options.body ? { 'Content-Type': 'application/json' } : {}),
         },

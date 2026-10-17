@@ -189,7 +189,8 @@ export interface EsimIssueParams {
  * `status_qr: 'PENDING'` and an empty `qrcode`. Get it later with
  * `esim.getOrder(order_uuid)`, or listen for the `order.completed` webhook.
  */
-export interface EsimIssueResponse {
+export interface EsimIssueCompletedResponse {
+  pending?: false;
   order_uuid: string;
   message: string;
   data: {
@@ -202,6 +203,15 @@ export interface EsimIssueResponse {
   user: ApiUser;
   testing_mode?: boolean;
 }
+
+/** A 202 response retains funds while the provider outcome is verified. */
+export interface EsimIssuePendingResponse {
+  success: true;
+  pending: true;
+  order_uuid: string;
+  message: string;
+}
+export type EsimIssueResponse = EsimIssueCompletedResponse | EsimIssuePendingResponse;
 
 export interface EsimRenewParams {
   iccid: string;
@@ -262,9 +272,17 @@ export interface EsimTopupProduct {
   data: string;
   voice?: string;
   sms?: string;
+  /** Total charged when you apply this product (plan_price + service_fee). */
   price: number;
+  /** The plan's own price, before the service fee. */
+  plan_price?: number;
+  /** Fee added when applying it (flat for renewals, max($1, 5%) for eSIM top-ups via `esim.issue()`). */
+  service_fee?: number;
   currency: string;
   package_type?: string;
+  /** country | region | global */
+  plan_type?: string;
+  region_name?: string;
   unlimited?: boolean;
   unlimited_speed?: string | null;
   countries_included?: string;
