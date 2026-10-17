@@ -1,6 +1,15 @@
 # Changelog
 
-## 0.4.1
+## 0.5.0
+
+### Changed (breaking)
+- `esim.issue(params, idempotencyKey)` now requires an idempotency key, sent as the
+  `Idempotency-Key` header. Use one unique key per purchase and reuse the same key
+  when retrying after a timeout, so a purchase is never charged twice. A response
+  with `pending: true` means the order is still being confirmed - check it with
+  `esim.getOrder(order_uuid)` before buying again.
+
+### Added
 
 - `EsimTopupProduct`: new optional `plan_price`, `service_fee`, `plan_type`, `region_name`.
   `price` is now always the full amount charged when the product is applied.
